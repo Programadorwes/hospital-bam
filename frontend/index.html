@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema Hospital MP - Busca de Dados</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        h1 {
+            color: #667eea;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 1.1em;
+        }
+
+        .search-section {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 15px 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        button {
+            padding: 15px 40px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .quick-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .quick-btn {
+            padding: 10px 20px;
+            background: #f5f5f5;
+            color: #333;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .quick-btn:hover {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 1.2em;
+            color: #667eea;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results-container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+        }
+
+        .table-result {
+            margin-bottom: 40px;
+        }
+
+        .table-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .table-name {
+            font-size: 1.3em;
+            font-weight: bold;
+        }
+
+        .record-count {
+            background: rgba(255,255,255,0.2);
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+        }
+
+        .table-data {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 600px;
+        }
+
+        th {
+            background: #f8f9fa;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #495057;
+            border-bottom: 2px solid #dee2e6;
+            position: sticky;
+            top: 0;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+            font-size: 1.2em;
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 4px solid #c33;
+            margin-top: 20px;
+        }
+
+        .info-box {
+            background: #e8f4fd;
+            border-left: 4px solid #2196F3;
+            padding: 15px 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.8em;
+            }
+
+            .search-box {
+                flex-direction: column;
+            }
+
+            button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏥 Sistema Hospital MP</h1>
+            <p class="subtitle">Busca Inteligente de Dados</p>
+        </header>
+
+        <div class="search-section">
+            <div class="info-box">
+                <strong>💡 Como usar:</strong> Digite o nome do paciente para buscar na tabela BAM. Você pode gerar um PDF formatado com todos os dados do atendimento.
+            </div>
+
+            <h3 style="color: #667eea; margin-bottom: 15px;">🔍 Buscar Paciente BAM</h3>
+            <div class="search-box">
+                <input 
+                    type="text" 
+                    id="searchInput" 
+                    placeholder="Digite o nome do paciente..."
+                    onkeypress="if(event.key==='Enter') buscarPacienteBAM()"
+                >
+                <button onclick="buscarPacienteBAM()" id="btnBuscar">🔍 Buscar Paciente</button>
+            </div>
+
+            <div class="quick-buttons">
+                <button class="quick-btn" onclick="buscarGeral()">🔍 Busca Geral</button>
+                <button class="quick-btn" onclick="listarTabelas()">📋 Listar Tabelas</button>
+                <button class="quick-btn" onclick="limparResultados()">🗑️ Limpar</button>
+            </div>
+        </div>
+
+        <div id="loadingDiv" style="display: none;" class="results-container">
+            <div class="loading">
+                <div class="spinner"></div>
+                <p>Buscando em todas as tabelas...</p>
+            </div>
+        </div>
+
+        <div id="resultsDiv"></div>
+    </div>
+
+    <script>
+        const API_URL = 'http://192.168.1.5:5000/api';
+
+        async function buscarPacienteBAM() {
+            const nome = document.getElementById('searchInput').value.trim();
+            
+            if (!nome) {
+                alert('Por favor, digite o nome do paciente!');
+                return;
+            }
+
+            mostrarLoading(true);
+            limparResultados();
+
+            try {
+                const response = await fetch(`${API_URL}/buscar-paciente-bam`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ nome: nome })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    mostrarResultadosBAM(data);
+                } else {
+                    mostrarErro(data.error);
+                }
+            } catch (error) {
+                mostrarErro('Erro ao conectar com a API: ' + error.message);
+            } finally {
+                mostrarLoading(false);
+            }
+        }
+
+        function mostrarResultadosBAM(data) {
+            let html = '<div class="results-container">';
+            
+            if (data.resultados.length === 0) {
+                html += '<div class="no-results">';
+                html += `<h2>😕 Nenhum paciente encontrado</h2>`;
+                html += `<p>Não foi encontrado nenhum atendimento BAM para o paciente informado.</p>`;
+                html += '</div>';
+            } else {
+                html += `<h2 style="margin-bottom: 20px; color: #667eea;">🎯 Encontrados ${data.total} atendimento(s)</h2>`;
+                
+                data.resultados.forEach(atendimento => {
+                    html += '<div class="table-result">';
+                    html += '<div class="table-header">';
+                    html += `<div>`;
+                    html += `<div class="table-name">👤 ${atendimento.paciente_nome}</div>`;
+                    html += `<div style="font-size: 0.9em; margin-top: 5px;">📋 BAM: ${atendimento.idbam} | 📅 ${atendimento.data} às ${atendimento.hora}</div>`;
+                    html += `</div>`;
+                    html += `<span class="record-count">ID: ${atendimento.idbam}</span>`;
+                    html += '</div>';
+                    html += '<div class="table-data">';
+                    html += '<table><tbody>';
+                    
+                    html += `<tr><td><strong>📋 Controle</strong></td><td>${atendimento.controle || 'N/A'}</td></tr>`;
+                    html += `<tr><td><strong>📅 Data</strong></td><td>${atendimento.data || 'N/A'}</td></tr>`;
+                    html += `<tr><td><strong>🕐 Hora</strong></td><td>${atendimento.hora || 'N/A'}</td></tr>`;
+                    html += `<tr><td><strong>🏥 Unidade</strong></td><td>${atendimento.unidade || 'N/A'}</td></tr>`;
+                    html += `<tr><td><strong>👨‍⚕️ Atendente</strong></td><td>${atendimento.natendente || 'N/A'}</td></tr>`;
+                    html += `<tr><td><strong>📱 Telefone</strong></td><td>${atendimento.paciente_telefone || 'N/A'}</td></tr>`;
+                    html += `<tr><td><strong>🏠 Endereço</strong></td><td>${atendimento.paciente_endereco || 'N/A'}, ${atendimento.paciente_bairro || ''}</td></tr>`;
+                    html += `<tr><td><strong>🏙️ Cidade</strong></td><td>${atendimento.paciente_municipio || 'N/A'}</td></tr>`;
+                    html += `<tr><td><strong>🎂 Nascimento</strong></td><td>${atendimento.paciente_nascimento || 'N/A'}</td></tr>`;
+                    html += `<tr><td><strong>⚧ Sexo</strong></td><td>${atendimento.paciente_sexo || 'N/A'}</td></tr>`;
+                    html += `<tr><td><strong>💊 Status</strong></td><td>${atendimento.ematendimento === 'true' ? '✅ Em Atendimento' : '❌ Finalizado'}</td></tr>`;
+                    
+                    html += '</tbody></table>';
+                    
+                    // RELATO MÉDICO / SOAP
+                    if (atendimento.avaliacao_anamnese) {
+                        html += '<div style="margin-top: 20px; background: #f8f9fa; padding: 20px; border-radius: 10px; border-left: 4px solid #667eea;">';
+                        html += '<h3 style="color: #667eea; margin-bottom: 10px;">📋 RELATO MÉDICO / SOAP</h3>';
+                        html += `<p style="white-space: pre-wrap; line-height: 1.6;">${atendimento.avaliacao_anamnese}</p>`;
+                        html += '</div>';
+                    }
+                    
+                    html += `<div style="margin-top: 20px; text-align: center;">`;
+                    html += `<button onclick="gerarPDF(${atendimento.idbam}, '${atendimento.paciente_nome}')" style="padding: 15px 30px; font-size: 16px;">📄 Gerar PDF Completo</button>`;
+                    html += `</div>`;
+                    html += '</div></div>';
+                });
+            }
+            
+            html += '</div>';
+            document.getElementById('resultsDiv').innerHTML = html;
+        }
+
+        async function gerarPDF(idbam, nomePaciente) {
+            try {
+                // Abrir o PDF em nova aba
+                const url = `${API_URL}/gerar-pdf-bam/${idbam}`;
+                window.open(url, '_blank');
+                
+                // Mensagem de sucesso
+                alert(`✅ PDF gerado com sucesso para ${nomePaciente}!`);
+            } catch (error) {
+                mostrarErro('Erro ao gerar PDF: ' + error.message);
+            }
+        }
+
+        async function buscarGeral() {
+            const termo = document.getElementById('searchInput').value.trim();
+            
+            if (!termo) {
+                alert('Por favor, digite um termo para buscar!');
+                return;
+            }
+
+            mostrarLoading(true);
+            limparResultados();
+
+            try {
+                const response = await fetch(`${API_URL}/buscar`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ termo: termo })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    mostrarResultados(data);
+                } else {
+                    mostrarErro(data.error);
+                }
+            } catch (error) {
+                mostrarErro('Erro ao conectar com a API: ' + error.message);
+            } finally {
+                mostrarLoading(false);
+            }
+        }
+
+        function buscarRapido(termo) {
+            document.getElementById('searchInput').value = termo;
+            buscarGeral();
+        }
+
+        async function listarTabelas() {
+            mostrarLoading(true);
+            limparResultados();
+
+            try {
+                const response = await fetch(`${API_URL}/tabelas`);
+                const data = await response.json();
+
+                if (data.success) {
+                    let html = '<div class="results-container">';
+                    html += '<div class="table-header">';
+                    html += '<span class="table-name">📋 Tabelas Disponíveis</span>';
+                    html += `<span class="record-count">${data.tabelas.length} tabelas</span>`;
+                    html += '</div>';
+                    html += '<div class="table-data">';
+                    html += '<table><thead><tr><th>#</th><th>Nome da Tabela</th><th>Ações</th></tr></thead><tbody>';
+                    
+                    data.tabelas.forEach((tabela, index) => {
+                        html += `<tr>
+                            <td>${index + 1}</td>
+                            <td><strong>${tabela}</strong></td>
+                            <td><button class="quick-btn" onclick="verTabela('${tabela}')">Ver Dados</button></td>
+                        </tr>`;
+                    });
+                    
+                    html += '</tbody></table></div></div>';
+                    document.getElementById('resultsDiv').innerHTML = html;
+                }
+            } catch (error) {
+                mostrarErro('Erro ao listar tabelas: ' + error.message);
+            } finally {
+                mostrarLoading(false);
+            }
+        }
+
+        async function verTabela(nome) {
+            mostrarLoading(true);
+            limparResultados();
+
+            try {
+                const response = await fetch(`${API_URL}/tabela/${nome}?limite=50`);
+                const data = await response.json();
+
+                if (data.success) {
+                    let html = '<div class="results-container">';
+                    html += '<div class="table-result">';
+                    html += '<div class="table-header">';
+                    html += `<span class="table-name">📊 ${nome.toUpperCase()}</span>`;
+                    html += `<span class="record-count">${data.total} registros</span>`;
+                    html += '</div>';
+                    html += '<div class="table-data">';
+                    html += '<table><thead><tr>';
+                    
+                    data.colunas.forEach(col => {
+                        html += `<th>${col}</th>`;
+                    });
+                    
+                    html += '</tr></thead><tbody>';
+                    
+                    data.registros.forEach(registro => {
+                        html += '<tr>';
+                        data.colunas.forEach(col => {
+                            html += `<td>${registro[col] || 'NULL'}</td>`;
+                        });
+                        html += '</tr>';
+                    });
+                    
+                    html += '</tbody></table></div></div></div>';
+                    document.getElementById('resultsDiv').innerHTML = html;
+                }
+            } catch (error) {
+                mostrarErro('Erro ao ver tabela: ' + error.message);
+            } finally {
+                mostrarLoading(false);
+            }
+        }
+
+        function mostrarResultados(data) {
+            let html = '<div class="results-container">';
+            
+            if (data.resultados.length === 0) {
+                html += '<div class="no-results">';
+                html += `<h2>😕 Nenhum resultado encontrado</h2>`;
+                html += `<p>Não foi encontrado nenhum registro contendo "${data.termo}"</p>`;
+                html += '</div>';
+            } else {
+                html += `<h2 style="margin-bottom: 20px; color: #667eea;">🎯 Encontrados resultados em ${data.total_tabelas} tabela(s)</h2>`;
+                
+                data.resultados.forEach(resultado => {
+                    html += '<div class="table-result">';
+                    html += '<div class="table-header">';
+                    html += `<span class="table-name">📊 ${resultado.tabela.toUpperCase()}</span>`;
+                    html += `<span class="record-count">${resultado.total} registros</span>`;
+                    html += '</div>';
+                    html += '<div class="table-data">';
+                    html += '<table><thead><tr>';
+                    
+                    const colunas = Object.keys(resultado.registros[0]);
+                    colunas.forEach(col => {
+                        html += `<th>${col}</th>`;
+                    });
+                    
+                    html += '</tr></thead><tbody>';
+                    
+                    resultado.registros.forEach(registro => {
+                        html += '<tr>';
+                        colunas.forEach(col => {
+                            const valor = registro[col];
+                            const destaque = valor && valor.toLowerCase().includes(data.termo.toLowerCase()) 
+                                ? `style="background-color: #fff3cd; font-weight: bold;"` 
+                                : '';
+                            html += `<td ${destaque}>${valor || 'NULL'}</td>`;
+                        });
+                        html += '</tr>';
+                    });
+                    
+                    html += '</tbody></table></div></div>';
+                });
+            }
+            
+            html += '</div>';
+            document.getElementById('resultsDiv').innerHTML = html;
+        }
+
+        function mostrarErro(mensagem) {
+            const html = `
+                <div class="results-container">
+                    <div class="error">
+                        <strong>❌ Erro:</strong> ${mensagem}
+                        <p style="margin-top: 10px;">Verifique se a API está rodando em http://localhost:5000</p>
+                    </div>
+                </div>
+            `;
+            document.getElementById('resultsDiv').innerHTML = html;
+        }
+
+        function mostrarLoading(show) {
+            document.getElementById('loadingDiv').style.display = show ? 'block' : 'none';
+            document.getElementById('btnBuscar').disabled = show;
+        }
+
+        function limparResultados() {
+            document.getElementById('resultsDiv').innerHTML = '';
+        }
+
+        // Verificar conexão com a API ao carregar a página
+        window.onload = async function() {
+            try {
+                const response = await fetch(`${API_URL}/health`);
+                const data = await response.json();
+                console.log('✅ API conectada:', data.message);
+            } catch (error) {
+                console.error('❌ Erro ao conectar com a API:', error);
+                mostrarErro('Não foi possível conectar com a API. Certifique-se de que o servidor Flask está rodando.');
+            }
+        };
+    </script>
+</body>
+</html>
