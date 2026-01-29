@@ -10,6 +10,7 @@ from reportlab.lib.units import cm
 from datetime import datetime
 import io
 import os
+import re
 
 app = Flask(__name__)
 CORS(app)
@@ -177,6 +178,34 @@ def ver_tabela(nome):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/colunas-prescricao')
+def colunas_prescricao():
+    """Retorna colunas da tabela prescricao"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'prescricao';")
+        colunas = [row[0] for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+        return jsonify({'colunas': colunas})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+@app.route('/api/colunas-exames')
+def colunas_exames():
+    """Retorna colunas da tabela examescomplementares"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'examescomplementares';")
+        colunas = [row[0] for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+        return jsonify({'colunas': colunas})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
 @app.route('/', methods=['GET'])
 def index():
     """Página inicial da API"""
@@ -277,266 +306,272 @@ def buscar_paciente_bam():
 @app.route('/api/gerar-pdf-bam/<int:idbam>', methods=['GET'])
 def gerar_pdf_bam(idbam):
     """Gera PDF com os dados do paciente BAM"""
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    # Início do corpo da função corrigido
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    query = """
+        SELECT 
+            b.*,
+            p.nome as paciente_nome,
+            p.cpf as paciente_cpf,
+            p.rg as paciente_rg,
+            p.nascimento as paciente_nascimento,
+            p.idade as paciente_idade,
+            p.sexo as paciente_sexo,
+            p.telefone as paciente_telefone,
+            p.endereco as paciente_endereco,
+            p.numero as paciente_numero,
+            p.bairro as paciente_bairro,
+            p.municipio as paciente_municipio,
+            p.estado as paciente_estado,
+            p.cep as paciente_cep,
+            p.mae as paciente_mae,
+            p.pai as paciente_pai,
+            p.sangue as paciente_sangue,
+            p.cns as paciente_cns,
+            p.prontuario as paciente_prontuario,
+            a.anamnese as avaliacao_anamnese
+        FROM bam b
+        LEFT JOIN pacientes p ON b.paciente_idpaciente = p.idpaciente
+        LEFT JOIN avaliacao a ON b.avaliacao_idavaliacao = a.idavaliacao
+        WHERE b.idbam = %s
+    """
+
         
-        # Buscar dados completos
-        query = """
-            SELECT 
-                b.*,
-                p.nome as paciente_nome,
-                p.cpf as paciente_cpf,
-                p.rg as paciente_rg,
-                p.nascimento as paciente_nascimento,
-                p.idade as paciente_idade,
-                p.sexo as paciente_sexo,
-                p.telefone as paciente_telefone,
-                p.endereco as paciente_endereco,
-                p.numero as paciente_numero,
-                p.bairro as paciente_bairro,
-                p.municipio as paciente_municipio,
-                p.estado as paciente_estado,
-                p.cep as paciente_cep,
-                p.mae as paciente_mae,
-                p.pai as paciente_pai,
-                p.sangue as paciente_sangue,
-                p.cns as paciente_cns,
-                p.prontuario as paciente_prontuario,
-                a.anamnese as avaliacao_anamnese
-            FROM bam b
-            LEFT JOIN pacientes p ON b.paciente_idpaciente = p.idpaciente
-            LEFT JOIN avaliacao a ON b.avaliacao_idavaliacao = a.idavaliacao
-            WHERE b.idbam = %s
-        """
-        
-        cursor.execute(query, (idbam,))
-        dados = cursor.fetchone()
-        
-        if not dados:
-            cursor.close()
-            conn.close()
-            return jsonify({'success': False, 'error': 'Registro não encontrado'}), 404
-        
-        # Buscar prescrições/medicamentos
-        query_prescricao = """
-            SELECT descricao, quantidade, via, frequencia 
-            FROM prescricao 
-            WHERE bam_idbam = %s
-            ORDER BY idprescricao
-        """
-        cursor.execute(query_prescricao, (idbam,))
-        prescricoes = cursor.fetchall()
-        
-        # Buscar exames
-        query_exames = """
-            SELECT descricao, resultado, data_realizacao
-            FROM examescomplementares 
-            WHERE bam_idbam = %s
-            ORDER BY idevolucao
-        """
-        cursor.execute(query_exames, (idbam,))
-        exames = cursor.fetchall()
-        cursor.execute(query_exames, (idbam,))
-        exames = cursor.fetchall()
-        
-        # Criar PDF em memória
-        buffer = io.BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=1.5*cm, leftMargin=1.5*cm, topMargin=1*cm, bottomMargin=1.5*cm)
-        
-        # Estilos
-        styles = getSampleStyleSheet()
-        
-        # Estilo para cabeçalho
-        header_style = ParagraphStyle(
-            'Header',
-            parent=styles['Normal'],
-            fontSize=11,
-            textColor=colors.black,
-            alignment=1,  # Center
-            spaceAfter=3
-        )
-        
-        title_style = ParagraphStyle(
-            'CustomTitle',
-            parent=styles['Heading1'],
-            fontSize=14,
-            textColor=colors.black,
-            spaceAfter=10,
-            alignment=1,  # Center
-            fontName='Helvetica-Bold'
-        )
-        
-        heading_style = ParagraphStyle(
-            'CustomHeading',
-            parent=styles['Heading2'],
-            fontSize=11,
-            textColor=colors.black,
-            spaceAfter=8,
-            spaceBefore=12,
-            fontName='Helvetica-Bold'
-        )
-        
-        small_style = ParagraphStyle(
-            'Small',
-            parent=styles['Normal'],
-            fontSize=9,
-            leading=11
-        )
-        
-        # Conteúdo do PDF
-        story = []
-        
-        # CABEÇALHO IGUAL AO EXEMPLO
-        story.append(Paragraph("HOSPITAL MUNICIPAL LUIZ GONZAGA ( HMLG )", header_style))
-        story.append(Paragraph(f"BOLETIM DE ATENDIMENTO MÉDICO: {dados['controle'] or 'N/A'}", small_style))
-        
-        # Linha com classificação e dados do atendimento
-        classificacao_cor = "VERMELHO" if dados['prioridade'] == 1 else "AMARELO" if dados['prioridade'] == 2 else "VERDE"
-        
-        header_data = [
-            [f"CLASSIFICAÇÃO DE RISCO: {classificacao_cor}", "", f"SERVIÇO DE PRONTO SOCORRO"],
-            [f"DATA: {dados['data'] or 'N/A'}", f"HORA: {dados['hora'] or 'N/A'}", f"CADASTRADO POR: {dados['natendente'] or 'N/A'}"]
-        ]
-        
-        t_header = Table(header_data, colWidths=[7*cm, 5*cm, 6*cm])
-        t_header.setStyle(TableStyle([
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-            ('TOPPADDING', (0, 0), (-1, -1), 4),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
-        ]))
-        story.append(t_header)
-        story.append(Spacer(1, 0.3*cm))
-        
-        # Dados do Paciente
-        dados_paciente = [
-            [f"NOME: {dados['paciente_nome'] or 'N/A'}", "", f"NASCIMENTO: {dados['paciente_nascimento'] or 'N/A'}"],
-            [f"PROFISSÃO: N/A", f"SEXO: {dados['paciente_sexo'] or 'M'}", f"IDADE: {dados['paciente_idade'] or 'N/A'}"],
-            [f"MÃE: {dados['paciente_mae'] or 'N/A'}", "", f"PAI: {dados['paciente_pai'] or 'N/A'}"],
-            [f"PRONTUÁRIO ÚNICO: {dados['paciente_prontuario'] or 'N/A'}", "", f"CNS: {dados['paciente_cns'] or 'N/A'}"],
-            [f"CPF: {dados['paciente_cpf'] or 'N/A'}", "", f"RG: {dados['paciente_rg'] or 'N/A'}"],
-            [f"ESTADO CIVIL: N/A", "", f"NATURALIDADE: {dados['paciente_estado'] or 'N/A'}"],
-            [f"ENDEREÇO: {dados['paciente_endereco'] or 'N/A'}", "", f"NÚMERO: {dados['paciente_numero'] or 'S/N'}"],
-            [f"MUNICÍPIO: {dados['paciente_municipio'] or 'N/A'}", f"BAIRRO: {dados['paciente_bairro'] or 'N/A'}", f"CEP: {dados['paciente_cep'] or 'N/A'}"],
-            [f"TELEFONES: {dados['paciente_telefone'] or 'N/A'}", "", f"SANGUE: {dados['paciente_sangue'] or 'N/A'}"]
-        ]
-        
-        t1 = Table(dados_paciente, colWidths=[7*cm, 5*cm, 6*cm])
-        t1.setStyle(TableStyle([
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-            ('TOPPADDING', (0, 0), (-1, -1), 4),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-            ('SPAN', (0, 0), (1, 0)),  # Nome ocupa 2 colunas
-            ('SPAN', (0, 2), (1, 2)),  # Mãe ocupa 2 colunas
-            ('SPAN', (0, 3), (1, 3)),  # Prontuário ocupa 2 colunas
-            ('SPAN', (0, 4), (1, 4)),  # CPF ocupa 2 colunas
-            ('SPAN', (0, 6), (1, 6)),  # Endereço ocupa 2 colunas
-            ('SPAN', (0, 8), (1, 8)),  # Telefone ocupa 2 colunas
-        ]))
-        story.append(t1)
-        story.append(Spacer(1, 0.3*cm))
-        story.append(t1)
-        story.append(Spacer(1, 0.3*cm))
-        
-        # ANAMNESE / QUEIXA PRINCIPAL
-        if dados['avaliacao_anamnese']:
-            story.append(Paragraph("ANAMNESE / Exames Solicitados / Diagnóstico Provisório / Prescrição Inicial", heading_style))
-            anamnese_text = (dados['avaliacao_anamnese'] or '').replace('\n', '<br/>')
-            story.append(Paragraph(anamnese_text, small_style))
-            story.append(Spacer(1, 0.3*cm))
-        
-        # EXAMES REALIZADOS
-        if exames:
-            story.append(Paragraph("EXAMES SOLICITADOS / REALIZADOS", heading_style))
-            exames_data = [['Descrição', 'Resultado', 'Data']]
-            for exame in exames:
-                exames_data.append([
-                    exame['descricao'] or 'N/A',
-                    exame['resultado'] or 'Aguardando',
-                    str(exame['data_realizacao']) if exame['data_realizacao'] else 'N/A'
-                ])
-            
-            t_exames = Table(exames_data, colWidths=[8*cm, 6*cm, 4*cm])
-            t_exames.setStyle(TableStyle([
-                ('FONTSIZE', (0, 0), (-1, -1), 9),
-                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-                ('TOPPADDING', (0, 0), (-1, -1), 6),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-            ]))
-            story.append(t_exames)
-            story.append(Spacer(1, 0.3*cm))
-        
-        # PRESCRIÇÃO INICIAL / MEDICAMENTOS
-        if prescricoes:
-            story.append(Paragraph("PRESCRIÇÃO INICIAL / MEDICAMENTOS ADMINISTRADOS", heading_style))
-            prescricao_data = [['Medicamento', 'Quantidade', 'Via', 'Frequência']]
-            for presc in prescricoes:
-                prescricao_data.append([
-                    presc['descricao'] or 'N/A',
-                    presc['quantidade'] or 'N/A',
-                    presc['via'] or 'N/A',
-                    presc['frequencia'] or 'N/A'
-                ])
-            
-            t_prescricao = Table(prescricao_data, colWidths=[7*cm, 3*cm, 4*cm, 4*cm])
-            t_prescricao.setStyle(TableStyle([
-                ('FONTSIZE', (0, 0), (-1, -1), 9),
-                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-                ('TOPPADDING', (0, 0), (-1, -1), 6),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-            ]))
-            story.append(t_prescricao)
-            story.append(Spacer(1, 0.3*cm))
-        
-        # Receita/Prescrição Texto Livre
-        if dados['receita']:
-            story.append(Paragraph("RECEITA / ORIENTAÇÕES", heading_style))
-            receita_text = (dados['receita'] or '').replace('\n', '<br/>')
-            story.append(Paragraph(receita_text, small_style))
-            story.append(Spacer(1, 0.3*cm))
-            story.append(Paragraph(receita_text, small_style))
-            story.append(Spacer(1, 0.3*cm))
-        
-        # Comentário de Transferência
-        if dados['comentariotranferencia']:
-            story.append(Paragraph("COMENTÁRIO DE TRANSFERÊNCIA", heading_style))
-            comentario_text = (dados['comentariotranferencia'] or '').replace('\n', '<br/>')
-            story.append(Paragraph(comentario_text, small_style))
-            story.append(Spacer(1, 0.3*cm))
-        
-        # Rodapé - Local e Data
-        story.append(Spacer(1, 1*cm))
-        story.append(Paragraph("RIO DE JANEIRO", header_style))
-        story.append(Spacer(1, 0.5*cm))
-        story.append(Paragraph(f"{dados['natendente'] or 'Atendente não identificado'} - CRM: {dados['controle'] or 'N/A'}", small_style))
-        
-        # Construir PDF
-        doc.build(story)
-        buffer.seek(0)
-        
+    cursor.execute(query, (idbam,))
+    dados = cursor.fetchone()
+    if not dados:
         cursor.close()
         conn.close()
-        
-        # Retornar PDF
-        nome_arquivo = f"BAM_{dados['paciente_nome'].replace(' ', '_')}_{dados['controle']}.pdf"
-        return send_file(
-            buffer,
-            mimetype='application/pdf',
-            as_attachment=True,
-            download_name=nome_arquivo
-        )
-    
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Registro não encontrado'}), 404
+
+    # Debug: printar dados retornados do banco
+    print('DADOS DO BANCO:', dados)
+
+    # Buscar prescrições/medicamentos
+    query_prescricao = """
+        SELECT prescricao, medicacao, observacao, data, hora
+        FROM prescricao
+        WHERE bam = %s
+        ORDER BY idprescricao
+    """
+    cursor.execute(query_prescricao, (idbam,))
+    prescricoes = cursor.fetchall()
+
+    # Buscar exames
+    query_exames = """
+        SELECT relato, data, leito, enfermaria
+        FROM examescomplementares
+        WHERE nbam = %s
+        ORDER BY idevolucao
+    """
+    cursor.execute(query_exames, (idbam,))
+    exames = cursor.fetchall()
+
+    # Criar PDF em memória
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=1.5*cm, leftMargin=1.5*cm, topMargin=1*cm, bottomMargin=1.5*cm)
+
+    # Estilos
+    styles = getSampleStyleSheet()
+
+    # Estilo para cabeçalho
+    header_style = ParagraphStyle(
+        'Header',
+        parent=styles['Normal'],
+        fontSize=11,
+        textColor=colors.black,
+        alignment=1,  # Center
+        spaceAfter=3
+    )
+
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=14,
+        textColor=colors.black,
+        spaceAfter=10,
+        alignment=1,  # Center
+        fontName='Helvetica-Bold'
+    )
+
+    heading_style = ParagraphStyle(
+        'CustomHeading',
+        parent=styles['Heading2'],
+        fontSize=11,
+        textColor=colors.black,
+        spaceAfter=8,
+        spaceBefore=12,
+        fontName='Helvetica-Bold'
+    )
+
+    small_style = ParagraphStyle(
+        'Small',
+        parent=styles['Normal'],
+        fontSize=9,
+        leading=11
+    )
+
+    # Conteúdo do PDF
+    story = []
+
+    # CABEÇALHO IGUAL AO EXEMPLO
+    story.append(Paragraph("HOSPITAL MUNICIPAL LUIZ GONZAGA ( HMLG )", header_style))
+    story.append(Paragraph(f"BOLETIM DE ATENDIMENTO MÉDICO: {dados['controle'] or 'N/A'}", small_style))
+
+    # Linha com classificação e dados do atendimento
+    classificacao_cor = "VERMELHO" if dados['prioridade'] == 1 else "AMARELO" if dados['prioridade'] == 2 else "VERDE"
+
+    header_data = [
+        [f"CLASSIFICAÇÃO DE RISCO: {classificacao_cor}", "", f"SERVIÇO DE PRONTO SOCORRO"],
+        [f"DATA: {dados['data'] or 'N/A'}", f"HORA: {dados['hora'] or 'N/A'}", ""],
+        [f"CADASTRADO POR: {dados['natendente'] or 'N/A'}", "", ""]
+    ]
+
+    t_header = Table(header_data, colWidths=[7*cm, 5*cm, 6*cm])
+    t_header.setStyle(TableStyle([
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+        ('SPAN', (0, 2), (2, 2)),  # CADASTRADO POR ocupa as 3 colunas
+        ('ALIGN', (0, 2), (2, 2), 'CENTER'),
+    ]))
+    story.append(t_header)
+    story.append(Spacer(1, 0.3*cm))
+
+    # Dados do Paciente
+    dados_paciente = [
+        [f"NOME: {dados['paciente_nome'] or 'N/A'}", "", f"NASCIMENTO: {dados['paciente_nascimento'] or 'N/A'}"],
+        [f"PROFISSÃO: N/A", f"SEXO: {dados['paciente_sexo'] or 'M'}", f"IDADE: {dados['paciente_idade'] or 'N/A'}"],
+        [f"MÃE: {dados['paciente_mae'] or 'N/A'}", "", f"PAI: {dados['paciente_pai'] or 'N/A'}"],
+        [f"PRONTUÁRIO ÚNICO: {dados['paciente_prontuario'] or 'N/A'}", "", f"CNS: {dados['paciente_cns'] or 'N/A'}"],
+        [f"CPF: {dados['paciente_cpf'] or 'N/A'}", "", f"RG: {dados['paciente_rg'] or 'N/A'}"],
+        [f"ESTADO CIVIL: N/A", "", f"NATURALIDADE: {dados['paciente_estado'] or 'N/A'}"],
+        [f"ENDEREÇO: {dados['paciente_endereco'] or 'N/A'}", "", f"NÚMERO: {dados['paciente_numero'] or 'S/N'}"],
+        [f"MUNICÍPIO: {dados['paciente_municipio'] or 'N/A'}", f"BAIRRO: {dados['paciente_bairro'] or 'N/A'}", f"CEP: {dados['paciente_cep'] or 'N/A'}"],
+        [f"TELEFONES: {dados['paciente_telefone'] or 'N/A'}", "", f"SANGUE: {dados['paciente_sangue'] or 'N/A'}"]
+    ]
+
+    t1 = Table(dados_paciente, colWidths=[7*cm, 5*cm, 6*cm])
+    t1.setStyle(TableStyle([
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+        ('SPAN', (0, 0), (1, 0)),  # Nome ocupa 2 colunas
+        ('SPAN', (0, 2), (1, 2)),  # Mãe ocupa 2 colunas
+        ('SPAN', (0, 3), (1, 3)),  # Prontuário ocupa 2 colunas
+        ('SPAN', (0, 4), (1, 4)),  # CPF ocupa 2 colunas
+        ('SPAN', (0, 6), (1, 6)),  # Endereço ocupa 2 colunas
+        ('SPAN', (0, 8), (1, 8)),  # Telefone ocupa 2 colunas
+    ]))
+    story.append(t1)
+    story.append(Spacer(1, 0.3*cm))
+
+    # ANAMNESE / QUEIXA PRINCIPAL
+    if dados['avaliacao_anamnese']:
+        story.append(Paragraph("ANAMNESE / Exames Solicitados / Diagnóstico Provisório / Prescrição Inicial", heading_style))
+        anamnese_text = (dados['avaliacao_anamnese'] or '').replace('\n', '<br/>')
+        story.append(Paragraph(anamnese_text, small_style))
+        story.append(Spacer(1, 0.3*cm))
+
+    # EXAMES REALIZADOS
+    if exames:
+        story.append(Paragraph("EXAMES SOLICITADOS / REALIZADOS", heading_style))
+        exames_data = [['Relato', 'Data', 'Leito', 'Enfermaria']]
+        for exame in exames:
+            exames_data.append([
+                exame['relato'] or 'N/A',
+                str(exame['data']) if exame['data'] else 'N/A',
+                exame['leito'] or 'N/A',
+                exame['enfermaria'] or 'N/A'
+            ])
+        t_exames = Table(exames_data, colWidths=[8*cm, 4*cm, 3*cm, 3*cm])
+        t_exames.setStyle(TableStyle([
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+        ]))
+        story.append(t_exames)
+        story.append(Spacer(1, 0.3*cm))
+
+    # PRESCRIÇÃO INICIAL / MEDICAMENTOS
+    if prescricoes:
+        story.append(Paragraph("PRESCRIÇÃO INICIAL / MEDICAMENTOS ADMINISTRADOS", heading_style))
+        prescricao_data = [['Medicamento', 'Quantidade', 'Via', 'Frequência']]
+        for presc in prescricoes:
+            prescricao_data.append([
+                presc['descricao'] or 'N/A',
+                presc['quantidade'] or 'N/A',
+                presc['via'] or 'N/A',
+                presc['frequencia'] or 'N/A'
+            ])
+        t_prescricao = Table(prescricao_data, colWidths=[7*cm, 3*cm, 4*cm, 4*cm])
+        t_prescricao.setStyle(TableStyle([
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+        ]))
+        story.append(t_prescricao)
+        story.append(Spacer(1, 0.3*cm))
+
+    # Comentário de Transferência
+    if dados['comentariotranferencia']:
+        story.append(Paragraph("COMENTÁRIO DE TRANSFERÊNCIA", heading_style))
+        comentario_text = (dados['comentariotranferencia'] or '').replace('\n', '<br/>')
+        story.append(Paragraph(comentario_text, small_style))
+        story.append(Spacer(1, 0.3*cm))
+
+    # Rodapé - Local e Data
+    story.append(Spacer(1, 1*cm))
+    story.append(Paragraph("RIO DE JANEIRO", header_style))
+    story.append(Spacer(1, 0.5*cm))
+    story.append(Paragraph(f"{dados['natendente'] or 'Atendente não identificado'} - CRM: {dados['controle'] or 'N/A'}", small_style))
+
+    # Construir PDF
+    doc.build(story)
+    buffer.seek(0)
+
+    cursor.close()
+    conn.close()
+
+    # Retornar PDF
+    nome_arquivo = f"BAM_{dados['paciente_nome'].replace(' ', '_')}_{dados['controle']}.pdf"
+    return send_file(
+        buffer,
+        mimetype='application/pdf',
+        as_attachment=False,
+        download_name=nome_arquivo
+    )
+
+    # Fim da função
+
+def limpar_html(texto):
+    if not texto:
+        return ''
+    # Remove tags problemáticas e atributos
+    texto = re.sub(r'<img[^>]*>', '', texto, flags=re.IGNORECASE)
+    texto = re.sub(r'<(html|head|title|center|font|hr|b|h3|h4|h1|h2|h5|h6)[^>]*>', '', texto, flags=re.IGNORECASE)
+    texto = re.sub(r'</?(html|head|title|center|font|hr|b|h3|h4|h1|h2|h5|h6)>', '', texto, flags=re.IGNORECASE)
+    # Remove atributos width, height, align, size
+    texto = re.sub(r'\s(width|height|align|size)=["\']?[^\s>]+', '', texto, flags=re.IGNORECASE)
+    # Remove qualquer tag que não seja <br>
+    texto = re.sub(r'<(?!br\s*\/?>)[^>]+>', '', texto)
+    # Remove entidades HTML desconhecidas
+    texto = re.sub(r'&[a-zA-Z0-9#]+;', '', texto)
+    # Remove múltiplos <br> seguidos
+    texto = re.sub(r'(<br\s*\/?>\s*)+', '<br/>', texto)
+    return texto.strip()
 
 if __name__ == '__main__':
     # Rodar no IP da máquina para permitir acesso externo

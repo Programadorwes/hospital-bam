@@ -258,7 +258,7 @@
 
         <div class="search-section">
             <div class="info-box">
-                <strong>💡 Como usar:</strong> Digite o nome do paciente para buscar na tabela BAM. Você pode gerar um PDF formatado com todos os dados do atendimento.
+                <strong>💡 Como usar:</strong> Busque por <strong>Nome</strong>, <strong>CPF</strong> ou <strong>Data</strong> (ex: 2025-01-15). O sistema vai buscar em todos os campos automaticamente.
             </div>
 
             <h3 style="color: #667eea; margin-bottom: 15px;">🔍 Buscar Paciente BAM</h3>
@@ -266,7 +266,7 @@
                 <input 
                     type="text" 
                     id="searchInput" 
-                    placeholder="Digite o nome do paciente..."
+                    placeholder="Digite o nome, CPF ou data (2025-01-15)..."
                     onkeypress="if(event.key==='Enter') buscarPacienteBAM()"
                 >
                 <button onclick="buscarPacienteBAM()" id="btnBuscar">🔍 Buscar Paciente</button>
