@@ -301,6 +301,8 @@ def gerar_pdf_bam(idbam):
                 p.mae as paciente_mae,
                 p.pai as paciente_pai,
                 p.sangue as paciente_sangue,
+                p.cns as paciente_cns,
+                p.prontuario as paciente_prontuario,
                 a.anamnese as avaliacao_anamnese
             FROM bam b
             LEFT JOIN pacientes p ON b.paciente_idpaciente = p.idpaciente
@@ -316,140 +318,206 @@ def gerar_pdf_bam(idbam):
             conn.close()
             return jsonify({'success': False, 'error': 'Registro não encontrado'}), 404
         
+        # Buscar prescrições/medicamentos
+        query_prescricao = """
+            SELECT descricao, quantidade, via, frequencia 
+            FROM prescricao 
+            WHERE bam_idbam = %s
+            ORDER BY idprescricao
+        """
+        cursor.execute(query_prescricao, (idbam,))
+        prescricoes = cursor.fetchall()
+        
+        # Buscar exames
+        query_exames = """
+            SELECT descricao, resultado, data_realizacao
+            FROM examescomplementares 
+            WHERE bam_idbam = %s
+            ORDER BY idevolucao
+        """
+        cursor.execute(query_exames, (idbam,))
+        exames = cursor.fetchall()
+        cursor.execute(query_exames, (idbam,))
+        exames = cursor.fetchall()
+        
         # Criar PDF em memória
         buffer = io.BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=2*cm, leftMargin=2*cm, topMargin=2*cm, bottomMargin=2*cm)
+        doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=1.5*cm, leftMargin=1.5*cm, topMargin=1*cm, bottomMargin=1.5*cm)
         
         # Estilos
         styles = getSampleStyleSheet()
+        
+        # Estilo para cabeçalho
+        header_style = ParagraphStyle(
+            'Header',
+            parent=styles['Normal'],
+            fontSize=11,
+            textColor=colors.black,
+            alignment=1,  # Center
+            spaceAfter=3
+        )
+        
         title_style = ParagraphStyle(
             'CustomTitle',
             parent=styles['Heading1'],
-            fontSize=18,
-            textColor=colors.HexColor('#667eea'),
-            spaceAfter=20,
-            alignment=1  # Center
+            fontSize=14,
+            textColor=colors.black,
+            spaceAfter=10,
+            alignment=1,  # Center
+            fontName='Helvetica-Bold'
         )
         
         heading_style = ParagraphStyle(
             'CustomHeading',
             parent=styles['Heading2'],
-            fontSize=14,
-            textColor=colors.HexColor('#764ba2'),
-            spaceAfter=10,
-            spaceBefore=15
+            fontSize=11,
+            textColor=colors.black,
+            spaceAfter=8,
+            spaceBefore=12,
+            fontName='Helvetica-Bold'
+        )
+        
+        small_style = ParagraphStyle(
+            'Small',
+            parent=styles['Normal'],
+            fontSize=9,
+            leading=11
         )
         
         # Conteúdo do PDF
         story = []
         
-        # Título
-        story.append(Paragraph("FICHA DE ATENDIMENTO - BAM", title_style))
-        story.append(Paragraph(f"Data de Emissão: {datetime.now().strftime('%d/%m/%Y %H:%M')}", styles['Normal']))
-        story.append(Spacer(1, 0.5*cm))
+        # CABEÇALHO IGUAL AO EXEMPLO
+        story.append(Paragraph("HOSPITAL MUNICIPAL LUIZ GONZAGA ( HMLG )", header_style))
+        story.append(Paragraph(f"BOLETIM DE ATENDIMENTO MÉDICO: {dados['controle'] or 'N/A'}", small_style))
+        
+        # Linha com classificação e dados do atendimento
+        classificacao_cor = "VERMELHO" if dados['prioridade'] == 1 else "AMARELO" if dados['prioridade'] == 2 else "VERDE"
+        
+        header_data = [
+            [f"CLASSIFICAÇÃO DE RISCO: {classificacao_cor}", "", f"SERVIÇO DE PRONTO SOCORRO"],
+            [f"DATA: {dados['data'] or 'N/A'}", f"HORA: {dados['hora'] or 'N/A'}", f"CADASTRADO POR: {dados['natendente'] or 'N/A'}"]
+        ]
+        
+        t_header = Table(header_data, colWidths=[7*cm, 5*cm, 6*cm])
+        t_header.setStyle(TableStyle([
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+        ]))
+        story.append(t_header)
+        story.append(Spacer(1, 0.3*cm))
         
         # Dados do Paciente
-        story.append(Paragraph("DADOS DO PACIENTE", heading_style))
         dados_paciente = [
-            ['Nome:', dados['paciente_nome'] or 'N/A'],
-            ['CPF:', dados['paciente_cpf'] or 'N/A'],
-            ['RG:', dados['paciente_rg'] or 'N/A'],
-            ['Data Nascimento:', dados['paciente_nascimento'] or 'N/A'],
-            ['Idade:', dados['paciente_idade'] or 'N/A'],
-            ['Sexo:', dados['paciente_sexo'] or 'N/A'],
-            ['Tipo Sanguíneo:', dados['paciente_sangue'] or 'N/A'],
-            ['Telefone:', dados['paciente_telefone'] or 'N/A'],
+            [f"NOME: {dados['paciente_nome'] or 'N/A'}", "", f"NASCIMENTO: {dados['paciente_nascimento'] or 'N/A'}"],
+            [f"PROFISSÃO: N/A", f"SEXO: {dados['paciente_sexo'] or 'M'}", f"IDADE: {dados['paciente_idade'] or 'N/A'}"],
+            [f"MÃE: {dados['paciente_mae'] or 'N/A'}", "", f"PAI: {dados['paciente_pai'] or 'N/A'}"],
+            [f"PRONTUÁRIO ÚNICO: {dados['paciente_prontuario'] or 'N/A'}", "", f"CNS: {dados['paciente_cns'] or 'N/A'}"],
+            [f"CPF: {dados['paciente_cpf'] or 'N/A'}", "", f"RG: {dados['paciente_rg'] or 'N/A'}"],
+            [f"ESTADO CIVIL: N/A", "", f"NATURALIDADE: {dados['paciente_estado'] or 'N/A'}"],
+            [f"ENDEREÇO: {dados['paciente_endereco'] or 'N/A'}", "", f"NÚMERO: {dados['paciente_numero'] or 'S/N'}"],
+            [f"MUNICÍPIO: {dados['paciente_municipio'] or 'N/A'}", f"BAIRRO: {dados['paciente_bairro'] or 'N/A'}", f"CEP: {dados['paciente_cep'] or 'N/A'}"],
+            [f"TELEFONES: {dados['paciente_telefone'] or 'N/A'}", "", f"SANGUE: {dados['paciente_sangue'] or 'N/A'}"]
         ]
         
-        t1 = Table(dados_paciente, colWidths=[5*cm, 12*cm])
+        t1 = Table(dados_paciente, colWidths=[7*cm, 5*cm, 6*cm])
         t1.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f0f0f0')),
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-            ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-            ('TOPPADDING', (0, 0), (-1, -1), 8),
-            ('GRID', (0, 0), (-1, -1), 1, colors.grey)
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+            ('SPAN', (0, 0), (1, 0)),  # Nome ocupa 2 colunas
+            ('SPAN', (0, 2), (1, 2)),  # Mãe ocupa 2 colunas
+            ('SPAN', (0, 3), (1, 3)),  # Prontuário ocupa 2 colunas
+            ('SPAN', (0, 4), (1, 4)),  # CPF ocupa 2 colunas
+            ('SPAN', (0, 6), (1, 6)),  # Endereço ocupa 2 colunas
+            ('SPAN', (0, 8), (1, 8)),  # Telefone ocupa 2 colunas
         ]))
         story.append(t1)
-        story.append(Spacer(1, 0.5*cm))
+        story.append(Spacer(1, 0.3*cm))
+        story.append(t1)
+        story.append(Spacer(1, 0.3*cm))
         
-        # Endereço
-        story.append(Paragraph("ENDEREÇO", heading_style))
-        endereco = f"{dados['paciente_endereco'] or ''}, {dados['paciente_numero'] or 'S/N'}"
-        bairro_cidade = f"{dados['paciente_bairro'] or ''} - {dados['paciente_municipio'] or ''}/{dados['paciente_estado'] or ''}"
-        cep = f"CEP: {dados['paciente_cep'] or 'N/A'}"
-        
-        dados_endereco = [
-            ['Endereço:', endereco],
-            ['Bairro/Cidade:', bairro_cidade],
-            ['CEP:', dados['paciente_cep'] or 'N/A']
-        ]
-        
-        t2 = Table(dados_endereco, colWidths=[5*cm, 12*cm])
-        t2.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f0f0f0')),
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-            ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-            ('TOPPADDING', (0, 0), (-1, -1), 8),
-            ('GRID', (0, 0), (-1, -1), 1, colors.grey)
-        ]))
-        story.append(t2)
-        story.append(Spacer(1, 0.5*cm))
-        
-        # Dados do Atendimento
-        story.append(Paragraph("DADOS DO ATENDIMENTO", heading_style))
-        dados_atendimento = [
-            ['Controle:', dados['controle'] or 'N/A'],
-            ['Data Atendimento:', dados['data'] or 'N/A'],
-            ['Hora:', dados['hora'] or 'N/A'],
-            ['Unidade:', dados['unidade'] or 'N/A'],
-            ['Atendente:', dados['natendente'] or 'N/A'],
-            ['Prioridade:', dados['prioridade'] or 'N/A'],
-            ['Em Atendimento:', 'Sim' if dados['ematendimento'] else 'Não'],
-            ['Internar:', 'Sim' if dados['internar'] else 'Não'],
-            ['Data da Alta:', dados['datadaalta'] or 'N/A'],
-            ['Dar Alta:', 'Sim' if dados['daralta'] else 'Não'],
-            ['Transferido:', 'Sim' if dados['transferido'] else 'Não'],
-        ]
-        
-        t3 = Table(dados_atendimento, colWidths=[5*cm, 12*cm])
-        t3.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f0f0f0')),
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-            ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-            ('TOPPADDING', (0, 0), (-1, -1), 8),
-            ('GRID', (0, 0), (-1, -1), 1, colors.grey)
-        ]))
-        story.append(t3)
-        story.append(Spacer(1, 0.5*cm))
-        
-        # ANAMNESE / SOAP DO MÉDICO
+        # ANAMNESE / QUEIXA PRINCIPAL
         if dados['avaliacao_anamnese']:
-            story.append(Paragraph("RELATO MÉDICO / SOAP", heading_style))
-            anamnese_text = dados['avaliacao_anamnese'].replace('\n', '<br/>')
-            story.append(Paragraph(anamnese_text, styles['Normal']))
-            story.append(Spacer(1, 0.5*cm))
+            story.append(Paragraph("ANAMNESE / Exames Solicitados / Diagnóstico Provisório / Prescrição Inicial", heading_style))
+            anamnese_text = (dados['avaliacao_anamnese'] or '').replace('\n', '<br/>')
+            story.append(Paragraph(anamnese_text, small_style))
+            story.append(Spacer(1, 0.3*cm))
         
-        # Receita/Prescrição
+        # EXAMES REALIZADOS
+        if exames:
+            story.append(Paragraph("EXAMES SOLICITADOS / REALIZADOS", heading_style))
+            exames_data = [['Descrição', 'Resultado', 'Data']]
+            for exame in exames:
+                exames_data.append([
+                    exame['descricao'] or 'N/A',
+                    exame['resultado'] or 'Aguardando',
+                    str(exame['data_realizacao']) if exame['data_realizacao'] else 'N/A'
+                ])
+            
+            t_exames = Table(exames_data, colWidths=[8*cm, 6*cm, 4*cm])
+            t_exames.setStyle(TableStyle([
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                ('TOPPADDING', (0, 0), (-1, -1), 6),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+            ]))
+            story.append(t_exames)
+            story.append(Spacer(1, 0.3*cm))
+        
+        # PRESCRIÇÃO INICIAL / MEDICAMENTOS
+        if prescricoes:
+            story.append(Paragraph("PRESCRIÇÃO INICIAL / MEDICAMENTOS ADMINISTRADOS", heading_style))
+            prescricao_data = [['Medicamento', 'Quantidade', 'Via', 'Frequência']]
+            for presc in prescricoes:
+                prescricao_data.append([
+                    presc['descricao'] or 'N/A',
+                    presc['quantidade'] or 'N/A',
+                    presc['via'] or 'N/A',
+                    presc['frequencia'] or 'N/A'
+                ])
+            
+            t_prescricao = Table(prescricao_data, colWidths=[7*cm, 3*cm, 4*cm, 4*cm])
+            t_prescricao.setStyle(TableStyle([
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                ('TOPPADDING', (0, 0), (-1, -1), 6),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+            ]))
+            story.append(t_prescricao)
+            story.append(Spacer(1, 0.3*cm))
+        
+        # Receita/Prescrição Texto Livre
         if dados['receita']:
-            story.append(Paragraph("RECEITA/PRESCRIÇÃO", heading_style))
-            receita_text = dados['receita'].replace('\n', '<br/>')
-            story.append(Paragraph(receita_text, styles['Normal']))
-            story.append(Spacer(1, 0.5*cm))
+            story.append(Paragraph("RECEITA / ORIENTAÇÕES", heading_style))
+            receita_text = (dados['receita'] or '').replace('\n', '<br/>')
+            story.append(Paragraph(receita_text, small_style))
+            story.append(Spacer(1, 0.3*cm))
+            story.append(Paragraph(receita_text, small_style))
+            story.append(Spacer(1, 0.3*cm))
         
         # Comentário de Transferência
         if dados['comentariotranferencia']:
             story.append(Paragraph("COMENTÁRIO DE TRANSFERÊNCIA", heading_style))
-            comentario_text = dados['comentariotranferencia'].replace('\n', '<br/>')
-            story.append(Paragraph(comentario_text, styles['Normal']))
+            comentario_text = (dados['comentariotranferencia'] or '').replace('\n', '<br/>')
+            story.append(Paragraph(comentario_text, small_style))
+            story.append(Spacer(1, 0.3*cm))
+        
+        # Rodapé - Local e Data
+        story.append(Spacer(1, 1*cm))
+        story.append(Paragraph("RIO DE JANEIRO", header_style))
+        story.append(Spacer(1, 0.5*cm))
+        story.append(Paragraph(f"{dados['natendente'] or 'Atendente não identificado'} - CRM: {dados['controle'] or 'N/A'}", small_style))
         
         # Construir PDF
         doc.build(story)
