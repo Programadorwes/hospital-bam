@@ -177,6 +177,20 @@ def ver_tabela(nome):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/', methods=['GET'])
+def index():
+    """Página inicial da API"""
+    return jsonify({
+        'status': 'online',
+        'message': 'API Hospital BAM está funcionando!',
+        'endpoints': {
+            'health': '/api/health',
+            'buscar_paciente': '/api/buscar-paciente-bam (POST)',
+            'gerar_pdf': '/api/gerar-pdf-bam/<id> (GET)',
+            'tabelas': '/api/tabelas (GET)'
+        }
+    })
+
 @app.route('/api/health', methods=['GET'])
 def health():
     """Verifica se a API está funcionando"""
