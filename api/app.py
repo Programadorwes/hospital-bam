@@ -17,9 +17,7 @@ CORS(app)
 # Configurações do banco - usa variável de ambiente ou local
 DATABASE_URL = os.environ.get('DATABASE_URL')
 if DATABASE_URL:
-    # Render usa postgresql:// mas psycopg2 precisa de postgres://
-    if DATABASE_URL.startswith('postgres://'):
-        DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+    # psycopg2 aceita postgresql:// ou postgres://
     DB_CONFIG = DATABASE_URL
 else:
     # Configuração local
