@@ -234,17 +234,47 @@
             margin-bottom: 20px;
         }
 
-        @media (max-width: 768px) {
+        @media (max-width: 900px) {
             h1 {
-                font-size: 1.8em;
+                font-size: 1.5em;
             }
-
-            .search-box {
+            .container {
+                padding: 5px;
+            }
+            .search-section {
+                padding: 15px;
+            }
+            .results-container {
+                padding: 15px;
+            }
+            .search-box, .quick-buttons {
                 flex-direction: column;
+                gap: 10px;
             }
-
-            button {
+            .table-data {
+                overflow-x: auto;
+            }
+            button, input[type="text"], input[type="date"] {
                 width: 100%;
+                font-size: 1em;
+                padding: 12px;
+            }
+            .table-result {
+                margin-bottom: 20px;
+            }
+        }
+        @media (max-width: 600px) {
+            .container {
+                padding: 2px;
+            }
+            .search-section, .results-container {
+                padding: 5px;
+            }
+            h1 {
+                font-size: 1.1em;
+            }
+            .table-header, .table-name {
+                font-size: 1em;
             }
         }
     </style>
@@ -257,24 +287,21 @@
             </div>
 
             <h3 style="color: #667eea; margin-bottom: 15px;">🔍 Buscar Atendimento BAM</h3>
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+            <div class="search-box" style="margin-bottom: 20px;">
                 <input 
                     type="text" 
                     id="searchNome" 
                     placeholder="Nome do paciente"
-                    style="padding: 15px; border: 2px solid #ddd; border-radius: 10px; font-size: 16px;"
                 >
                 <input 
                     type="text" 
                     id="searchCPF" 
                     placeholder="CPF"
-                    style="padding: 15px; border: 2px solid #ddd; border-radius: 10px; font-size: 16px;"
                 >
                 <input 
                     type="date" 
                     id="searchData" 
                     placeholder="Data"
-                    style="padding: 15px; border: 2px solid #ddd; border-radius: 10px; font-size: 16px;"
                 >
             </div>
             <div style="text-align: center;">
