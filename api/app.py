@@ -240,37 +240,47 @@ def buscar_paciente_bam():
         
         # Buscar na tabela BAM com JOIN nas tabelas relacionadas
         query = """
-            SELECT 
-                b.idbam,
-                b.controle,
-                b.data,
-                b.hora,
-                b.datadaalta,
-                b.unidade,
-                b.natendente,
-                b.receita,
-                b.comentariotranferencia,
-                b.transferido,
-                b.daralta,
-                b.ematendimento,
-                b.internar,
-                b.prioridade,
-                p.nome as paciente_nome,
-                p.cpf as paciente_cpf,
-                p.nascimento as paciente_nascimento,
-                p.sexo as paciente_sexo,
-                p.telefone as paciente_telefone,
-                p.endereco as paciente_endereco,
-                p.bairro as paciente_bairro,
-                p.municipio as paciente_municipio,
-                p.mae as paciente_mae,
-                a.anamnese as avaliacao_anamnese
-            FROM bam b
-            LEFT JOIN pacientes p ON b.paciente_idpaciente = p.idpaciente
-            LEFT JOIN avaliacao a ON b.avaliacao_idavaliacao = a.idavaliacao
-            WHERE UPPER(p.nome) LIKE UPPER(%s)
-            ORDER BY b.data DESC, b.hora DESC
-            LIMIT 50
+SELECT 
+    b.idbam,
+    b.controle,
+    b.data,
+    b.hora,
+    b.datadaalta,
+    b.unidade,
+    b.natendente,
+    b.receita,
+    b.comentariotranferencia,
+    b.transferido,
+    b.daralta,
+    b.ematendimento,
+    b.internar,
+    b.prioridade,
+    p.nome as paciente_nome,
+    p.cpf as paciente_cpf,
+    p.nascimento as paciente_nascimento,
+    p.sexo as paciente_sexo,
+    p.telefone as paciente_telefone,
+    p.endereco as paciente_endereco,
+    p.bairro as paciente_bairro,
+    p.municipio as paciente_municipio,
+    p.mae as paciente_mae,
+    string_agg(pr.prescricao, '\n') as prescricao,
+    a.anamnese as avaliacao_anamnese,
+    CASE 
+        WHEN b.daralta THEN 'Finalizado/Alta'
+        WHEN b.internar THEN 'Internado'
+        WHEN b.ematendimento THEN 'Em atendimento'
+        WHEN b.transferido THEN 'Transferido'
+        ELSE 'Em aberto'
+    END as status
+FROM bam b
+LEFT JOIN pacientes p ON b.paciente_idpaciente = p.idpaciente
+LEFT JOIN avaliacao a ON b.avaliacao_idavaliacao = a.idavaliacao
+INNER JOIN prescricao pr ON b.idbam = pr.bam AND pr.prescricao IS NOT NULL AND pr.prescricao != ''
+WHERE UPPER(p.nome) LIKE UPPER(%s)
+GROUP BY b.idbam, b.controle, b.data, b.hora, b.datadaalta, b.unidade, b.natendente, b.receita, b.comentariotranferencia, b.transferido, b.daralta, b.ematendimento, b.internar, b.prioridade, p.nome, p.cpf, p.nascimento, p.sexo, p.telefone, p.endereco, p.bairro, p.municipio, p.mae, a.anamnese
+ORDER BY b.data DESC, b.hora DESC
+LIMIT 50
         """
         
         cursor.execute(query, (f'%{nome}%',))
@@ -330,7 +340,19 @@ def gerar_pdf_bam(idbam):
             p.sangue as paciente_sangue,
             p.cns as paciente_cns,
             p.prontuario as paciente_prontuario,
-            a.anamnese as avaliacao_anamnese
+            (
+                SELECT string_agg(pr2.prescricao, '\n')
+                FROM prescricao pr2
+                WHERE pr2.bam = b.idbam AND pr2.prescricao IS NOT NULL AND pr2.prescricao != ''
+            ) as prescricao,
+            a.anamnese as avaliacao_anamnese,
+            CASE 
+                WHEN b.daralta THEN 'Finalizado/Alta'
+                WHEN b.internar THEN 'Internado'
+                WHEN b.ematendimento THEN 'Em atendimento'
+                WHEN b.transferido THEN 'Transferido'
+                ELSE 'Em aberto'
+            END as status
         FROM bam b
         LEFT JOIN pacientes p ON b.paciente_idpaciente = p.idpaciente
         LEFT JOIN avaliacao a ON b.avaliacao_idavaliacao = a.idavaliacao
@@ -419,11 +441,11 @@ def gerar_pdf_bam(idbam):
     story.append(Paragraph("HOSPITAL MUNICIPAL LUIZ GONZAGA ( HMLG )", header_style))
     story.append(Paragraph(f"BOLETIM DE ATENDIMENTO MÉDICO: {dados['controle'] or 'N/A'}", small_style))
 
-    # Linha com classificação e dados do atendimento
-    classificacao_cor = "VERMELHO" if dados['prioridade'] == 1 else "AMARELO" if dados['prioridade'] == 2 else "VERDE"
+    # Linha com classificação, status e dados do atendimento
+    classificacao_cor = "VERMELHO" if dados.get('prioridade') == '1' else "AMARELO" if dados.get('prioridade') == '2' else "VERDE"
 
     header_data = [
-        [f"CLASSIFICAÇÃO DE RISCO: {classificacao_cor}", "", f"SERVIÇO DE PRONTO SOCORRO"],
+        [f"CLASSIFICAÇÃO DE RISCO: {classificacao_cor}", f"STATUS: {dados.get('status','N/A')}", f"SERVIÇO DE PRONTO SOCORRO"],
         [f"DATA: {dados['data'] or 'N/A'}", f"HORA: {dados['hora'] or 'N/A'}", ""],
         [f"CADASTRADO POR: {dados['natendente'] or 'N/A'}", "", ""]
     ]
@@ -469,12 +491,19 @@ def gerar_pdf_bam(idbam):
     ]))
     story.append(t1)
     story.append(Spacer(1, 0.3*cm))
-
+    
     # ANAMNESE / QUEIXA PRINCIPAL
-    if dados['avaliacao_anamnese']:
+    if dados['avaliacao_anamnese'] or (dados.get('prescricao') and dados.get('prescricao').strip()):
         story.append(Paragraph("ANAMNESE / Exames Solicitados / Diagnóstico Provisório / Prescrição Inicial", heading_style))
-        anamnese_text = (dados['avaliacao_anamnese'] or '').replace('\n', '<br/>')
-        story.append(Paragraph(anamnese_text, small_style))
+        if dados['avaliacao_anamnese']:
+            anamnese_text = (dados['avaliacao_anamnese'] or '').replace('\n', '<br/>')
+            story.append(Paragraph(anamnese_text, small_style))
+        # Prescrição principal (igual ao frontend)
+        if dados.get('prescricao') and dados.get('prescricao').strip():
+            story.append(Spacer(1, 0.2*cm))
+            story.append(Paragraph("💊 Prescrição", ParagraphStyle('PrescricaoTitle', parent=styles['Normal'], fontSize=11, textColor=colors.HexColor('#764ba2'), fontName='Helvetica-Bold', spaceAfter=6)))
+            prescricao_text = (dados['prescricao'] or '').replace('\n', '<br/>')
+            story.append(Paragraph(prescricao_text, small_style))
         story.append(Spacer(1, 0.3*cm))
 
     # EXAMES REALIZADOS
@@ -504,15 +533,16 @@ def gerar_pdf_bam(idbam):
     # PRESCRIÇÃO INICIAL / MEDICAMENTOS
     if prescricoes:
         story.append(Paragraph("PRESCRIÇÃO INICIAL / MEDICAMENTOS ADMINISTRADOS", heading_style))
-        prescricao_data = [['Medicamento', 'Quantidade', 'Via', 'Frequência']]
+        prescricao_data = [['Prescrição', 'Medicação', 'Observação', 'Data', 'Hora']]
         for presc in prescricoes:
             prescricao_data.append([
-                presc['descricao'] or 'N/A',
-                presc['quantidade'] or 'N/A',
-                presc['via'] or 'N/A',
-                presc['frequencia'] or 'N/A'
+                presc.get('prescricao', 'N/A') or 'N/A',
+                presc.get('medicacao', 'N/A') or 'N/A',
+                presc.get('observacao', 'N/A') or 'N/A',
+                str(presc.get('data', 'N/A')) if presc.get('data') else 'N/A',
+                str(presc.get('hora', 'N/A')) if presc.get('hora') else 'N/A',
             ])
-        t_prescricao = Table(prescricao_data, colWidths=[7*cm, 3*cm, 4*cm, 4*cm])
+        t_prescricao = Table(prescricao_data, colWidths=[5*cm, 5*cm, 5*cm, 2.5*cm, 2.5*cm])
         t_prescricao.setStyle(TableStyle([
             ('FONTSIZE', (0, 0), (-1, -1), 9),
             ('BACKGROUND', (0, 0), (-1, 0), colors.grey),

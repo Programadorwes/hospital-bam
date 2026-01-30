@@ -377,7 +377,7 @@
                     html += `<tr><td><strong>Controle</strong></td><td>${atendimento.controle || 'N/A'}</td></tr>`;
                     html += `<tr><td><strong>Unidade</strong></td><td>${atendimento.unidade || 'N/A'}</td></tr>`;
                     html += `<tr><td><strong>Atendente</strong></td><td>${atendimento.natendente || 'N/A'}</td></tr>`;
-                    html += `<tr><td><strong>Status</strong></td><td>${atendimento.ematendimento === 'true' ? '✅ Em Atendimento' : '✔️ Finalizado'}</td></tr>`;
+                    html += `<tr><td><strong>Status</strong></td><td>${atendimento.status || 'N/A'}</td></tr>`;
                     html += `<tr><td><strong>Endereço</strong></td><td>${atendimento.paciente_endereco || 'N/A'}, ${atendimento.paciente_bairro || ''} - ${atendimento.paciente_municipio || ''}</td></tr>`;
                     html += '</tbody></table>';
                     html += '</div>';
@@ -385,10 +385,17 @@
                     html += '</div>';
                     
                     // RELATO MÉDICO / SOAP
-                    if (atendimento.avaliacao_anamnese) {
+                    if (atendimento.avaliacao_anamnese || atendimento.prescricao) {
                         html += '<div style="margin-top: 20px; background: #f8f9fa; padding: 20px; border-radius: 10px; border-left: 4px solid #667eea;">';
                         html += '<h3 style="color: #667eea; margin-bottom: 10px;">📋 RELATO MÉDICO / SOAP</h3>';
-                        html += `<p style="white-space: pre-wrap; line-height: 1.6;">${atendimento.avaliacao_anamnese}</p>`;
+                        if (atendimento.avaliacao_anamnese) {
+                            html += `<p style=\"white-space: pre-wrap; line-height: 1.6;\">${atendimento.avaliacao_anamnese}</p>`;
+                        }
+                        if (atendimento.prescricao) {
+                            html += '<hr style="margin: 15px 0;">';
+                            html += '<h4 style="color: #764ba2; margin-bottom: 8px;">💊 Prescrição</h4>';
+                            html += `<p style=\"white-space: pre-wrap; line-height: 1.6; color: #333;\">${atendimento.prescricao}</p>`;
+                        }
                         html += '</div>';
                     }
                     
