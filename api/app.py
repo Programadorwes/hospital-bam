@@ -530,30 +530,30 @@ def gerar_pdf_bam(idbam):
         story.append(t_exames)
         story.append(Spacer(1, 0.3*cm))
 
-    # PRESCRIÇÃO INICIAL / MEDICAMENTOS
-    if prescricoes:
-        story.append(Paragraph("PRESCRIÇÃO INICIAL / MEDICAMENTOS ADMINISTRADOS", heading_style))
-        prescricao_data = [['Prescrição', 'Medicação', 'Observação', 'Data', 'Hora']]
-        for presc in prescricoes:
-            prescricao_data.append([
-                presc.get('prescricao', 'N/A') or 'N/A',
-                presc.get('medicacao', 'N/A') or 'N/A',
-                presc.get('observacao', 'N/A') or 'N/A',
-                str(presc.get('data', 'N/A')) if presc.get('data') else 'N/A',
-                str(presc.get('hora', 'N/A')) if presc.get('hora') else 'N/A',
-            ])
-        t_prescricao = Table(prescricao_data, colWidths=[5*cm, 5*cm, 5*cm, 2.5*cm, 2.5*cm])
-        t_prescricao.setStyle(TableStyle([
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-            ('TOPPADDING', (0, 0), (-1, -1), 6),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-        ]))
-        story.append(t_prescricao)
-        story.append(Spacer(1, 0.3*cm))
+    # # PRESCRIÇÃO INICIAL / MEDICAMENTOS
+    # if prescricoes:
+    #     story.append(Paragraph("PRESCRIÇÃO INICIAL / MEDICAMENTOS ADMINISTRADOS", heading_style))
+    #     prescricao_data = [['Prescrição', 'Medicação', 'Observação', 'Data', 'Hora']]
+    #     for presc in prescricoes:
+    #         prescricao_data.append([
+    #             presc.get('prescricao', 'N/A') or 'N/A',
+    #             presc.get('medicacao', 'N/A') or 'N/A',
+    #             presc.get('observacao', 'N/A') or 'N/A',
+    #             str(presc.get('data', 'N/A')) if presc.get('data') else 'N/A',
+    #             str(presc.get('hora', 'N/A')) if presc.get('hora') else 'N/A',
+    #         ])
+    #     t_prescricao = Table(prescricao_data, colWidths=[5*cm, 5*cm, 5*cm, 2.5*cm, 2.5*cm])
+    #     t_prescricao.setStyle(TableStyle([
+    #         ('FONTSIZE', (0, 0), (-1, -1), 9),
+    #         ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+    #         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+    #         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+    #         ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    #         ('TOPPADDING', (0, 0), (-1, -1), 6),
+    #         ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+    #     ]))
+    #     story.append(t_prescricao)
+    #     story.append(Spacer(1, 0.3*cm))
 
     # Comentário de Transferência
     if dados['comentariotranferencia']:
