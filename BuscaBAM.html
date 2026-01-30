@@ -287,26 +287,28 @@
             </div>
 
             <h3 style="color: #667eea; margin-bottom: 15px;">🔍 Buscar Atendimento BAM</h3>
-            <div class="search-box" style="margin-bottom: 20px;">
-                <input 
-                    type="text" 
-                    id="searchNome" 
-                    placeholder="Nome do paciente"
-                >
-                <input 
-                    type="text" 
-                    id="searchCPF" 
-                    placeholder="CPF"
-                >
-                <input 
-                    type="date" 
-                    id="searchData" 
-                    placeholder="Data"
-                >
-            </div>
-            <div style="text-align: center;">
-                <button id="btnBuscar" onclick="buscarPacienteBAM()" style="padding: 15px 50px; font-size: 18px;">🔍 Buscar</button>
-            </div>
+            <form onsubmit="event.preventDefault(); buscarPacienteBAM();" autocomplete="off">
+                <div class="search-box" style="margin-bottom: 20px;">
+                    <input 
+                        type="text" 
+                        id="searchNome" 
+                        placeholder="Nome do paciente"
+                    >
+                    <input 
+                        type="text" 
+                        id="searchCPF" 
+                        placeholder="CPF"
+                    >
+                    <input 
+                        type="date" 
+                        id="searchData" 
+                        placeholder="Data"
+                    >
+                </div>
+                <div style="text-align: center;">
+                    <button id="btnBuscar" type="submit" style="padding: 15px 50px; font-size: 18px;">🔍 Buscar</button>
+                </div>
+            </form>
         </div>
 
         <div id="loadingDiv" style="display: none;" class="results-container">
