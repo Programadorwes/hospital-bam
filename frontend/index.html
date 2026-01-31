@@ -326,10 +326,8 @@
             const nome = document.getElementById('searchNome').value.trim();
             const cpf = document.getElementById('searchCPF').value.trim();
             const data = document.getElementById('searchData').value.trim();
-            
-            const busca = nome || cpf || data;
-            
-            if (!busca) {
+
+            if (!nome && !cpf && !data) {
                 alert('Por favor, preencha pelo menos um campo de busca!');
                 return;
             }
@@ -337,13 +335,19 @@
             mostrarLoading(true);
             limparResultados();
 
+            // Monta o payload apenas com os campos preenchidos
+            const payload = {};
+            if (nome) payload.nome = nome;
+            if (cpf) payload.cpf = cpf;
+            if (data) payload.data = data;
+
             try {
                 const response = await fetch(`${API_URL}/buscar-paciente-bam`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ nome: busca })
+                    body: JSON.stringify(payload)
                 });
 
                 const data = await response.json();

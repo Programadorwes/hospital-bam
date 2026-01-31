@@ -230,16 +230,67 @@ def buscar_paciente_bam():
     """Busca paciente na tabela BAM pelo nome"""
     try:
         data = request.json
-        nome = data.get('nome', '').strip()
-        
-        if not nome:
-            return jsonify({'success': False, 'error': 'Nome do paciente não informado'}), 400
-        
+        # O frontend sempre manda só o campo 'nome', mesmo para CPF ou data
+        busca = data.get('nome', '').strip()
+        cpf = data.get('cpf', '').strip()
+        data_atendimento = data.get('data', '').strip()
+
+        # Se vier todos vazios, retorna erro
+        if not (busca or cpf or data_atendimento):
+            return jsonify({'success': False, 'error': 'Informe nome, CPF ou data para buscar.'}), 400
+
+        condicoes = []
+        params = []
+
+        # Se o frontend enviar os campos separados (cpf, data), usa todos juntos (AND)
+        # Se só vier o campo 'nome', tenta identificar o tipo
+
+        def normaliza_cpf(cpf):
+            return re.sub(r'[^\d]', '', cpf or '')
+
+        # Sempre normaliza o CPF de busca (tira pontos/traço/espaço)
+        def normaliza_cpf(cpf):
+            return re.sub(r'[^\d]', '', cpf or '')
+
+        # Se busca for só CPF, normaliza
+        if busca and not (cpf or data_atendimento):
+            if re.fullmatch(r'\d{11}', normaliza_cpf(busca)):
+                busca_cpf = normaliza_cpf(busca)
+                condicoes.append("REPLACE(REPLACE(REPLACE(p.cpf, '.', ''), '-', ''), ' ', '') LIKE %s")
+                params.append(f'%{busca_cpf}%')
+            elif re.fullmatch(r'\d{4}-\d{2}-\d{2}', busca):
+                condicoes.append('CAST(b.data AS TEXT) LIKE %s')
+                params.append(f'%{busca}%')
+            else:
+                condicoes.append('UPPER(p.nome) LIKE UPPER(%s)')
+                params.append(f'%{busca}%')
+        else:
+            if busca:
+                condicoes.append('UPPER(p.nome) LIKE UPPER(%s)')
+                params.append(f'%{busca}%')
+            if cpf:
+                cpf_limpo = normaliza_cpf(cpf)
+                condicoes.append("REPLACE(REPLACE(REPLACE(p.cpf, '.', ''), '-', ''), ' ', '') LIKE %s")
+                params.append(f'%{cpf_limpo}%')
+            # Se o usuário digitar o CPF no campo nome junto com nome, tenta identificar e normalizar
+            if busca and re.fullmatch(r'.*\d{3}\.\d{3}\.\d{3}-\d{2}.*', busca):
+                # Extrai o CPF do texto
+                match = re.search(r'(\d{3}\.\d{3}\.\d{3}-\d{2})', busca)
+                if match:
+                    cpf_extraido = normaliza_cpf(match.group(1))
+                    condicoes.append("REPLACE(REPLACE(REPLACE(p.cpf, '.', ''), '-', ''), ' ', '') LIKE %s")
+                    params.append(f'%{cpf_extraido}%')
+            if data_atendimento:
+                condicoes.append('CAST(b.data AS TEXT) LIKE %s')
+                params.append(f'%{data_atendimento}%')
+
+        # Busca combinada: AND entre os campos
+        where_clause = ' AND '.join(condicoes)
+
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-        
-        # Buscar na tabela BAM com JOIN nas tabelas relacionadas
-        query = """
+
+        query = f"""
 SELECT 
     b.idbam,
     b.controle,
@@ -277,39 +328,36 @@ FROM bam b
 LEFT JOIN pacientes p ON b.paciente_idpaciente = p.idpaciente
 LEFT JOIN avaliacao a ON b.avaliacao_idavaliacao = a.idavaliacao
 LEFT JOIN prescricao pr ON b.idbam = pr.bam AND pr.prescricao IS NOT NULL AND pr.prescricao != ''
-WHERE UPPER(p.nome) LIKE UPPER(%s)
+WHERE {where_clause}
 GROUP BY b.idbam, b.controle, b.data, b.hora, b.datadaalta, b.unidade, b.natendente, b.receita, b.comentariotranferencia, b.transferido, b.daralta, b.ematendimento, b.internar, b.prioridade, p.nome, p.cpf, p.nascimento, p.sexo, p.telefone, p.endereco, p.bairro, p.municipio, p.mae, a.anamnese
 ORDER BY b.data DESC, b.hora DESC
 LIMIT 50
         """
-        
-        cursor.execute(query, (f'%{nome}%',))
+
+        cursor.execute(query, params)
         resultados = cursor.fetchall()
-        
+
         if not resultados:
             cursor.close()
             conn.close()
             return jsonify({'success': True, 'total': 0, 'resultados': []})
-        
-        # Converter para lista de dicionários
+
         pacientes = []
         for row in resultados:
             paciente = dict(row)
-            # Converter tipos especiais para string
             for key, value in paciente.items():
                 if value is not None:
                     paciente[key] = str(value)
             pacientes.append(paciente)
-        
+
         cursor.close()
         conn.close()
-        
+
         return jsonify({
             'success': True,
             'total': len(pacientes),
             'resultados': pacientes
         })
-    
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
