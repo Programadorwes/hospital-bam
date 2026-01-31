@@ -276,7 +276,7 @@ SELECT
 FROM bam b
 LEFT JOIN pacientes p ON b.paciente_idpaciente = p.idpaciente
 LEFT JOIN avaliacao a ON b.avaliacao_idavaliacao = a.idavaliacao
-INNER JOIN prescricao pr ON b.idbam = pr.bam AND pr.prescricao IS NOT NULL AND pr.prescricao != ''
+LEFT JOIN prescricao pr ON b.idbam = pr.bam AND pr.prescricao IS NOT NULL AND pr.prescricao != ''
 WHERE UPPER(p.nome) LIKE UPPER(%s)
 GROUP BY b.idbam, b.controle, b.data, b.hora, b.datadaalta, b.unidade, b.natendente, b.receita, b.comentariotranferencia, b.transferido, b.daralta, b.ematendimento, b.internar, b.prioridade, p.nome, p.cpf, p.nascimento, p.sexo, p.telefone, p.endereco, p.bairro, p.municipio, p.mae, a.anamnese
 ORDER BY b.data DESC, b.hora DESC
